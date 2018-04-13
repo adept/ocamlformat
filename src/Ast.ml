@@ -296,61 +296,64 @@ end = struct
     | Pld (PTyp t1) -> assert (typ == t1)
     | Pld _ -> assert false
     | Typ ctx -> (
-      match ctx.ptyp_desc with
-      | Ptyp_any | Ptyp_var _ | Ptyp_extension _ -> assert false
-      | Ptyp_alias (t1, _) | Ptyp_poly (_, t1) -> assert (typ == t1)
-      | Ptyp_arrow (_, t1, t2) -> assert ((typ == t1) || (typ == t2))
-      | Ptyp_tuple t1N | Ptyp_constr (_, t1N) -> assert (List.exists t1N ~f)
-      | Ptyp_variant (r1N, _, _) ->
+        match ctx.ptyp_desc with
+        | Ptyp_extension _ -> ()
+        | Ptyp_any | Ptyp_var _ -> assert false
+        | Ptyp_alias (t1, _) | Ptyp_poly (_, t1) -> assert (typ == t1)
+        | Ptyp_arrow (_, t1, t2) -> assert ((typ == t1) || (typ == t2))
+        | Ptyp_tuple t1N | Ptyp_constr (_, t1N) -> assert (List.exists t1N ~f)
+        | Ptyp_variant (r1N, _, _) ->
           assert (
             List.exists r1N ~f:(function
               | Rtag (_, _, _, t1N) -> List.exists t1N ~f
               | Rinherit t1 -> typ == t1 ) )
-      | Ptyp_package (_, it1N) -> assert (List.exists it1N ~f:snd_f)
-      | Ptyp_object (fields, _) ->
+        | Ptyp_package (_, it1N) -> assert (List.exists it1N ~f:snd_f)
+        | Ptyp_object (fields, _) ->
           assert (
             List.exists fields ~f:(function
               | Otag (_, _, t1) -> typ == t1
               | Oinherit t1 -> typ == t1 ) )
-      | Ptyp_class _ -> internal_error "objects not implemented" [] )
+        | Ptyp_class _ -> internal_error "objects not implemented" [] )
     | Pat ctx -> (
-      match ctx.ppat_desc with
-      | Ppat_constraint (_, t1) -> assert (typ == t1)
-      | _ -> assert false )
+        match ctx.ppat_desc with
+        | Ppat_constraint (_, t1) -> assert (typ == t1)
+        | _ -> assert false )
     | Exp ctx -> (
-      match ctx.pexp_desc with
-      | Pexp_constraint (_, t1)
-       |Pexp_coerce (_, None, t1)
-       |Pexp_poly (_, Some t1)
-       |Pexp_extension (_, PTyp t1) ->
+        match ctx.pexp_desc with
+        | Pexp_constraint (_, ({ ptyp_desc = Ptyp_package (_, it1N) } as ty)) ->
+          assert (typ == ty || List.exists it1N ~f:snd_f)
+        | Pexp_constraint (_, t1)
+        |Pexp_coerce (_, None, t1)
+        |Pexp_poly (_, Some t1)
+        |Pexp_extension (_, PTyp t1) ->
           assert (typ == t1)
-      | Pexp_coerce (_, Some t1, t2) -> assert ((typ == t1) || (typ == t2))
-      | Pexp_letexception (ext, _) -> assert (check_ext ext)
-      | _ -> assert false )
+        | Pexp_coerce (_, Some t1, t2) -> assert ((typ == t1) || (typ == t2))
+        | Pexp_letexception (ext, _) -> assert (check_ext ext)
+        | _ -> assert false )
     | Mty ctx -> (
-      match ctx.pmty_desc with
-      | Pmty_with (_, c1N) ->
+        match ctx.pmty_desc with
+        | Pmty_with (_, c1N) ->
           assert (
             List.exists c1N ~f:(function
               | Pwith_type (_, d1) | Pwith_typesubst (_, d1) ->
-                  check_type d1
+                check_type d1
               | _ -> false ) )
-      | _ -> assert false )
+        | _ -> assert false )
     | Mod _ -> assert false
     | Sig ctx -> (
-      match ctx.psig_desc with
-      | Psig_value {pval_type= t1} -> assert (typ == t1)
-      | Psig_type (_, d1N) -> assert (List.exists d1N ~f:check_type)
-      | Psig_typext typext -> assert (check_typext typext)
-      | Psig_exception ext -> assert (check_ext ext)
-      | _ -> assert false )
+        match ctx.psig_desc with
+        | Psig_value {pval_type= t1} -> assert (typ == t1)
+        | Psig_type (_, d1N) -> assert (List.exists d1N ~f:check_type)
+        | Psig_typext typext -> assert (check_typext typext)
+        | Psig_exception ext -> assert (check_ext ext)
+        | _ -> assert false )
     | Str ctx -> (
-      match ctx.pstr_desc with
-      | Pstr_primitive {pval_type= t1} -> assert (typ == t1)
-      | Pstr_type (_, d1N) -> assert (List.exists d1N ~f:check_type)
-      | Pstr_typext typext -> assert (check_typext typext)
-      | Pstr_exception ext -> assert (check_ext ext)
-      | _ -> assert false )
+        match ctx.pstr_desc with
+        | Pstr_primitive {pval_type= t1} -> assert (typ == t1)
+        | Pstr_type (_, d1N) -> assert (List.exists d1N ~f:check_type)
+        | Pstr_typext typext -> assert (check_typext typext)
+        | Pstr_exception ext -> assert (check_ext ext)
+        | _ -> assert false )
     | Top -> assert false
 
 
@@ -760,67 +763,66 @@ end = struct
           }
       , Ppat_construct ({txt= Lident "::"}, _) )
       when tl == pat ->
-        false
+      false
     | ( Pat
           { ppat_desc=
               Ppat_construct
                 ({txt= Lident "::"}, Some {ppat_desc= Ppat_tuple [_; _]}) }
       , (Ppat_construct _| Ppat_variant _) ) ->
-        false
+      false
     | ( Pat
           { ppat_desc=
               Ppat_construct
                 ({txt= Lident "::"}, Some {ppat_desc= Ppat_tuple [_; _]}) }
       , _ ) ->
-        true
+      true
     | ( Pat {ppat_desc= Ppat_construct _}
       , Ppat_construct ({txt= Lident "::"}, _) ) ->
-        true
+      true
+    | ( Exp {pexp_desc= Pexp_let _; _}
+      | Str {pstr_desc = Pstr_value _; _} )
+    , ( Ppat_construct (_, Some _)
+      | Ppat_variant (_, Some _)
+      | Ppat_or _) ->
+      (* let (Some p) = e *)
+      (* let (P1 | P2) = e *)
+      true
     | Exp {pexp_desc= Pexp_let (_, bindings, _)}, Ppat_tuple _ ->
-        List.exists bindings ~f:(function
-          | {pvb_pat; pvb_expr= {pexp_desc= Pexp_constraint _}} ->
-              pvb_pat == pat
-          | _ -> false )
-    | Pat {ppat_desc= Ppat_constraint _}, Ppat_unpack _
-     |( Pat {ppat_desc= Ppat_construct _ | Ppat_record _ | Ppat_variant _}
-      , Ppat_constraint _ )
-     |( Pat
-          { ppat_desc=
-              ( Ppat_alias _ | Ppat_array _ | Ppat_constraint _
-              | Ppat_construct _ | Ppat_variant _ ) }
-      , Ppat_tuple _ )
-     |( ( Pat
-            { ppat_desc=
-                ( Ppat_construct _ | Ppat_exception _ | Ppat_or _
-                | Ppat_tuple _ | Ppat_variant _ ) }
-        | Exp {pexp_desc= Pexp_fun _}
-        | Str {pstr_desc= Pstr_value _} )
-      , Ppat_alias _ )
-     |( Pat {ppat_desc= Ppat_lazy _}
-      , (Ppat_construct _ | Ppat_variant (_, Some _) | Ppat_or _) )
-     |( Pat
-          { ppat_desc=
-              ( Ppat_construct _ | Ppat_exception _ | Ppat_tuple _
-              | Ppat_variant _ ) }
-      , Ppat_or _ )
-     |Pat {ppat_desc= Ppat_tuple _}, (Ppat_constraint _ | Ppat_tuple _)
-     |Pat {ppat_desc= Ppat_lazy _}, Ppat_lazy _
-     |Exp {pexp_desc= Pexp_fun _}, Ppat_or _
-     |( Exp
-          { pexp_desc=
-              Pexp_fun _ | Pexp_function _ | Pexp_match _ | Pexp_try _ }
-      , (Ppat_constraint _ | Ppat_unpack _) )
-     |( (Pat {ppat_desc= Ppat_alias _} | Exp {pexp_desc= Pexp_let _})
-      , ( Ppat_unpack _
-        | Ppat_constraint
-            ({ppat_desc= Ppat_unpack _}, {ptyp_desc= Ptyp_package _}) ) )
-     |Exp {pexp_desc= Pexp_let _}, Ppat_exception _
-     |( Exp {pexp_desc= Pexp_fun _}
-      , (Ppat_construct _ | Ppat_lazy _ | Ppat_tuple _ | Ppat_variant _) ) ->
-        true
+      List.exists bindings ~f:(function
+        | {pvb_pat; pvb_expr= {pexp_desc= Pexp_constraint _}} ->
+          pvb_pat == pat
+        | _ -> false )
+    | _, Ppat_unpack _
+    | _, Ppat_constraint _
+    |( Pat
+         { ppat_desc=
+             ( Ppat_alias _ | Ppat_array _ | Ppat_constraint _
+             | Ppat_construct _ | Ppat_variant _ ) }
+     , Ppat_tuple _ )
+    |( ( Pat
+           { ppat_desc=
+               ( Ppat_construct _ | Ppat_exception _ | Ppat_or _
+               | Ppat_tuple _ | Ppat_variant _ ) }
+       | Exp {pexp_desc= Pexp_fun _}
+       | Str {pstr_desc= Pstr_value _} )
+     , Ppat_alias _ )
+    |( Pat {ppat_desc= Ppat_lazy _}
+     , (Ppat_construct _ | Ppat_variant (_, Some _) | Ppat_or _) )
+    |( Pat
+         { ppat_desc=
+             ( Ppat_construct _ | Ppat_exception _ | Ppat_tuple _
+             | Ppat_variant _ ) }
+     , Ppat_or _ )
+    |Pat {ppat_desc= Ppat_tuple _}, Ppat_tuple _
+    |Pat {ppat_desc= Ppat_lazy _}, Ppat_lazy _
+    |Exp {pexp_desc= Pexp_fun _}, Ppat_or _
+    |Exp {pexp_desc= Pexp_let _}, Ppat_exception _
+    |( Exp {pexp_desc= Pexp_fun _}
+     , (Ppat_construct _ | Ppat_lazy _ | Ppat_tuple _ | Ppat_variant _) ) ->
+      true
     | ( Pat {ppat_desc= Ppat_construct _ | Ppat_variant _; _}
       , (Ppat_construct (_, Some _) | Ppat_variant (_, Some _)) ) ->
-        true
+      true
     | _ -> false
 
 
@@ -937,8 +939,9 @@ end = struct
       | Pexp_record (flds, _)
         when List.exists flds ~f:(fun (_, e0) -> e0 == exp) ->
           exposed Non_apply exp (* Non_apply is perhaps pessimistic *)
-      | Pexp_record (_, Some ({pexp_desc= Pexp_apply ({pexp_desc= Pexp_ident {txt= Lident i}},_) } as e0))
+      | Pexp_record (_, Some ({pexp_desc= Pexp_apply ({pexp_desc= Pexp_ident {txt= Lident i}},_)} as e0))
         when e0 == exp && is_prefix_id i ->
+        (* don't put parens around [!e] in [{ !e with a; b }] *)
           false
       | Pexp_record (_, Some ({pexp_desc= Pexp_apply _} as e0))
         when e0 == exp ->
